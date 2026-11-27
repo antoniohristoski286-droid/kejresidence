@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="mk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Кеј Резиденс</title>
+<meta name="description" content="Интерактивна презентација на станбена зграда: избери кат, разгледај план и прошетај низ станот.">
+<meta property="og:title" content="Кеј Резиденс — интерактивна продажба на станови">
+<meta property="og:description" content="Избери кат, разгледај 3D план и прошетај низ станот.">
+<meta property="og:image" content="img/building.jpg">
+<link rel="preload" as="image" href="img/building.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ 1. ЗГРАДА ============ -->
+<section id="view-building" class="view active" aria-label="Зграда">
+  <svg id="scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="false"></svg>
+  <div class="shade"></div>
+
+  <header class="topbar">
+    <div class="brand"><span class="brand-name">KEJ</span><span class="brand-sub">RESIDENCE</span></div>
+    <nav class="nav">
+      <button data-action="list">Станови</button>
+      <button data-action="about">За проектот</button>
+    </nav>
+  </header>
+
+  <div class="hero-copy">
+    <div class="eyebrow">Кеј Резиденс · покрај реката</div>
+    <h1>Дом со поглед<br>на водата</h1>
+    <p class="mouse-only">Поминете со глувчето преку зградата и изберете кат за да ги видите становите.</p>
+    <p class="touch-only">Допрете кат на зградата или изберете подолу 👇</p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot available"></i>Слободен</span>
+    <span><i class="dot reserved"></i>Резервиран</span>
+    <span><i class="dot sold"></i>Продаден</span>
+  </div>
+
+  <nav id="floor-rail" class="floor-rail" aria-label="Катови"></nav>
+  <div id="floor-tip" class="tip" role="status"></div>
+  <aside id="drawer" class="drawer" aria-live="polite"></aside>
+</section>
+
+<!-- ============ 2. СТАН (план 2D / 3D) ============ -->
+<section id="view-apartment" class="view" aria-label="План на стан">
+  <button class="back" data-action="to-building">← Зграда</button>
+  <div class="pill" id="apt-pill"></div>
+  <div id="plan-wrap" class="plan-wrap"></div>
+  <div class="toggle" id="dim-toggle">
+    <button data-dim="2d">2D</button>
+    <button data-dim="3d" class="on">3D</button>
+  </div>
+  <aside class="apt-card" id="apt-card"></aside>
+</section>
+
+<!-- ============ 3. ПРОШЕТКА НИЗ СОБИТЕ ============ -->
+<section id="view-tour" class="view" aria-label="Прошетка низ станот">
+  <div id="tour-stage" class="tour-stage"></div>
+  <button class="back dark" data-action="to-plan">← План</button>
+  <div class="pill dark" id="tour-pill"></div>
+  <div class="minimap" id="minimap"></div>
+  <button class="plan-btn" data-action="to-plan">▦ Види план</button>
+  <div class="hint" id="hint">Повлечи за да погледнеш наоколу</div>
+</section>
+
+<div id="toast" class="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
