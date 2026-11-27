@@ -104,10 +104,17 @@ function el(tag, cls, html) {
   if (html != null) e.innerHTML = html;
   return e;
 }
+const ICON = {
+  arrowR: '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>',
+  arrowL: '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7 4 3 8l4 4"/></svg>',
+  close:  '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  plan:   '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h11v11h-11zM8 2.5v6h5.5M8 11v2.5M2.5 8H5"/></svg>',
+  check:  '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5"/></svg>',
+};
 const euro = n => n.toLocaleString('de-DE') + ' €';
 // Hover ефекти само за глувче — на телефон допирот веднаш отвора (без „двоен допир“ на iPhone)
 const mouseOnly = fn => e => { if (e.pointerType === 'mouse') fn(e); };
-const isPhone = () => matchMedia('(max-width: 760px)').matches;
+const isPhone = () => matchMedia('(max-width: 860px) and (orientation: portrait)').matches;
 const aptsOnFloor = f => APTS.filter(a => a.floor === f);
 const roomArea = r => +(r.w * r.h).toFixed(1);
 function toast(msg) {
@@ -200,6 +207,8 @@ function s(tag, attrs, parent) {
 const HERO = {
   src: 'img/building.jpg', w: 2048, h: 1152,
   focusX: 612,                                   // центар на зградата (за тесни екрани)
+  // Регион што мора да остане видлив на телефон (цела зграда, од покрив до приземје)
+  frame: { x0: 300, y0: 120, x1: 925, y1: 1135 },
   // Трите вертикални рабови: лев, агол, десен. Во перспектива се малку закосени,
   // затоа имаат x горе (x0 на висина y0) и x долу (x1 на висина y1).
   edges: [
@@ -207,18 +216,19 @@ const HERO = {
     { x0: 600, y0: 172, x1: 605, y1: 1100 },
     { x0: 875, y0: 218, x1: 872, y1: 1045 },
   ],
-  roof:    [212, 178, 225],                      // врвот на најгорниот кат (лево, агол, десно)
-  topBot:  [330, 298, 328],                      // дното на најгорниот кат
-  baseTop: [1005, 1040, 970],                    // дното на 1. кат (над приземјето)
+  // Нивоа на подовите, измерени од дното на балконите на фотографијата.
+  // levels[0] = подот на 1. кат, levels[11] = врвот на 11. кат.
+  // Секое ниво има три y-вредности: лев раб, агол, десен раб.
+  levels: [
+    [962, 1057, 957], [904, 983, 894], [840, 909, 831], [774, 835, 769],
+    [708, 759, 708],  [643, 684, 647], [576, 610, 587], [512, 533, 523],
+    [447, 459, 459],  [380, 385, 398], [317, 310, 337], [254, 235, 276],
+  ],
 };
 const lerp = (a, b, t) => a + (b - a) * t;
 const edgeX = (i, y) => { const e = HERO.edges[i]; return lerp(e.x0, e.x1, (y - e.y0) / (e.y1 - e.y0)); };
 // Линијата под кат f (1 = најдолен) — три y-вредности: лево, агол, десно
-function floorLine(f) {
-  if (f > PROJECT.floors) return HERO.roof;
-  const t = (f - 1) / (PROJECT.floors - 1);
-  return HERO.baseTop.map((y, i) => lerp(y, HERO.topBot[i], t));
-}
+const floorLine = f => HERO.levels[Math.max(0, Math.min(HERO.levels.length - 1, f - 1))];
 // Контура на кат што ја следи зградата околу аголот: [горе-лево, горе-агол, горе-десно, долу-десно, долу-агол, долу-лево]
 function floorOutline(f) {
   const b = floorLine(f), t = floorLine(f + 1);
@@ -314,7 +324,20 @@ function buildHero() {
 // На тесни (портрет) екрани ја сечеме сликата така што зградата останува во средина
 function fitHero() {
   const svg = $('#scene');
-  const aspect = innerWidth / innerHeight, imgAspect = HERO.w / HERO.h;
+  const vw = svg.clientWidth || innerWidth, vh = svg.clientHeight || innerHeight;
+  if (!vw || !vh) return;                        // скриен прозорец: нема што да се пресмета
+  const aspect = vw / vh, imgAspect = HERO.w / HERO.h;
+  // На телефон целата зграда (HERO.frame) мора да се гледа, од покривот до приземјето
+  if (isPhone()) {
+    const F = HERO.frame, fw = F.x1 - F.x0, fh = F.y1 - F.y0;
+    let w, h;
+    if (fw / fh > aspect) { w = fw; h = w / aspect; } else { h = fh; w = h * aspect; }
+    w = Math.min(w, HERO.w); h = Math.min(h, HERO.h);
+    const x0 = Math.max(0, Math.min(HERO.w - w, (F.x0 + F.x1) / 2 - w / 2));
+    const y0 = Math.max(0, Math.min(HERO.h - h, (F.y0 + F.y1) / 2 - h / 2));
+    svg.setAttribute('viewBox', `${x0.toFixed(0)} ${y0.toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}`);
+    return;
+  }
   if (aspect >= imgAspect) { svg.setAttribute('viewBox', `0 0 ${HERO.w} ${HERO.h}`); return; }
   const w = HERO.h * aspect;
   const x0 = Math.max(0, Math.min(HERO.w - w, HERO.focusX - w / 2));
@@ -404,7 +427,7 @@ function showTip(f) {
     <div class="t-units">${apts.map(a => `
       <div class="u ${a.status}"><b>${a.id}</b><span>${a.area} m²</span><em>${STATUS[a.status].label}</em></div>`).join('')}
     </div>
-    <div class="t-foot">${free.length ? `<span>од <b>${euro(Math.min(...free.map(a => a.price)))}</b></span>` : '<span>Распродаден</span>'}<span class="go">Види план →</span></div>`;
+    <div class="t-foot">${free.length ? `<span>од <b>${euro(Math.min(...free.map(a => a.price)))}</b></span>` : '<span>Распродаден</span>'}<span class="go">Видете план ${ICON.arrowR}</span></div>`;
   tip.classList.add('show');
   positionTip();
 }
@@ -467,7 +490,7 @@ function wireUnits(root) {
 }
 function openDrawer(html) {
   const d = $('#drawer');
-  d.innerHTML = `<button class="x" aria-label="Затвори">×</button>` + html;
+  d.innerHTML = `<button class="x" aria-label="Затвори">${ICON.close}</button>` + html;
   $('.x', d).onclick = closeDrawer;
   d.classList.add('open');
   $('#view-building').classList.add('drawer-open');
@@ -478,26 +501,41 @@ function closeDrawer() {
   $('#drawer').classList.remove('open');
   $('#view-building').classList.remove('drawer-open');
   selectFloor(0);
+  frameSelectedFloor();
+}
+// На телефон листот од дното го покрива долниот дел од зградата:
+// ја поместуваме фотографијата нагоре за избраниот кат да остане видлив над листот.
+function frameSelectedFloor() {
+  const svg = $('#scene'), drawer = $('#drawer');
+  if (!isPhone() || !fxState.sel || !drawer.classList.contains('open')) {
+    svg.style.transform = ''; svg.dataset.shift = 0; return;
+  }
+  const r = $(`.floor-hit[data-floor="${fxState.sel}"]`).getBoundingClientRect();
+  const center = (r.top + r.bottom) / 2 + (+svg.dataset.shift || 0);
+  const visTop = $('.topbar').offsetHeight, visBottom = innerHeight - drawer.offsetHeight;
+  const sceneBottom = svg.getBoundingClientRect().bottom + (+svg.dataset.shift || 0); // фотографијата мора да стигне до листот
+  const shift = Math.max(0, Math.min(center - (visTop + visBottom) / 2, sceneBottom - visBottom));
+  svg.dataset.shift = shift;
+  svg.style.transform = `translateY(${-shift.toFixed(0)}px)`;
 }
 function openFloor(f) {
   selectFloor(f);
   const apts = aptsOnFloor(f);
   const free = apts.filter(a => a.status === 'available').length;
   openDrawer(`
-    <div class="eyebrow">Избран кат</div>
     <h2>${f}. кат</h2>
     <div class="muted">${apts.length} стана · ${free} слободни · поглед кон реката</div>
     ${floorPlanSVG(f)}
     <div class="units">${apts.map(a => unitCard(a, false)).join('')}</div>`);
+  requestAnimationFrame(frameSelectedFloor);
 }
 function openList(filter = 'all') {
   selectFloor(0);
   const list = APTS.filter(a => a.status !== 'sold' && (filter === 'all' || a.type === filter)).sort((a, b) => a.price - b.price);
   const chip = (v, t) => `<button data-filter="${v}" class="${filter === v ? 'on' : ''}">${t}</button>`;
   const d = openDrawer(`
-    <div class="eyebrow">Достапни станови</div>
-    <h2>Станови</h2>
-    <div class="muted">${list.length} резултати · подредени по цена</div>
+    <h2>Достапни станови</h2>
+    <div class="muted">${list.length} ${list.length === 1 ? 'стан' : 'станови'} · подредени по цена</div>
     <div class="chips">${chip('all', 'Сите')}${chip('C', 'Студио')}${chip('A', 'Едносoбен')}${chip('B', 'Двособен')}</div>
     <div class="units">${list.map(a => unitCard(a, true)).join('')}</div>`);
   $$('[data-filter]', d).forEach(b => b.onclick = () => openList(b.dataset.filter));
@@ -505,8 +543,8 @@ function openList(filter = 'all') {
 function openAbout() {
   selectFloor(0);
   openDrawer(`
-    <div class="eyebrow">За проектот</div>
     <h2>Кеј Резиденс</h2>
+    <div class="muted">Станбена зграда покрај реката</div>
     <p class="body">Станбена зграда со ${PROJECT.floors} ката на самиот кеј, со поглед кон реката и планините.
       Секој стан има балкон, подно греење и паркинг место во подземната гаража.</p>
     <p class="body">Ова е <b>демо</b> проект: фотографиите на зградата и собите се генерирани со AI,
@@ -615,7 +653,7 @@ function renderPlan(apt, animateTo3D) {
   wrap.innerHTML = '';
   const L = apt.layout;
   const cw = wrap.clientWidth || innerWidth, ch = wrap.clientHeight || innerHeight;
-  const fill = isPhone() ? 0.74 : 0.66;
+  const fill = isPhone() ? 0.82 : 0.66;
   const S = Math.max(16, Math.min(cw * fill / L.w, ch * 0.72 / L.h, 78));
   const plan = el('div', 'plan');
   Object.assign(plan.style, { width: L.w * S + 'px', height: L.h * S + 'px', marginLeft: -L.w * S / 2 + 'px', marginTop: -L.h * S / 2 + 'px' });
@@ -683,24 +721,25 @@ function renderAptCard(apt) {
   const L = apt.layout;
   $('#apt-pill').innerHTML = `<b>Стан ${apt.id}</b> · ${apt.area} m² · ${euro(apt.price)}`;
   $('#apt-card').innerHTML = `
-    <div class="eyebrow">Стан ${apt.id} · ${apt.floor}. кат</div>
     <h2>${L.label}</h2>
-    <div><span class="price">${euro(apt.price)}</span><span class="st ${apt.status}">${STATUS[apt.status].label}</span></div>
+    <div class="muted">Стан ${apt.id} · ${apt.floor}. кат</div>
+    <div class="price-row"><span class="price">${euro(apt.price)}</span><span class="st ${apt.status}">${STATUS[apt.status].label}</span></div>
     <div class="specs">
       <div><b>${apt.area}</b><span>m²</span></div>
       <div><b>${L.bedrooms || '—'}</b><span>${L.bedrooms === 1 ? 'спална' : 'спални'}</span></div>
       <div><b>${L.facing}</b><span>ориентација</span></div>
     </div>
-    <div class="eyebrow rooms-eyebrow">Простории</div>
-    <ul class="roomlist">${L.rooms.map(r => `<li data-room="${r.id}"><span>${r.name}</span><span>${roomArea(r)} m²</span></li>`).join('')}</ul>
+    <h3 class="rooms-h">Простории</h3>
+    <ul class="roomlist">${L.rooms.map(r => `<li data-room="${r.id}" tabindex="0" role="button"><span>${r.name}</span><span>${roomArea(r)} m²</span></li>`).join('')}</ul>
     <div class="thumbs">${L.rooms.filter(r => r.photo).map(r =>
       `<button data-room="${r.id}" style="background-image:url('${r.photo.src}')"><span>${r.name}</span></button>`).join('')}</div>
     <div class="apt-actions">
-      <button class="btn primary" data-action="tour">Прошетај низ станот →</button>
-      <button class="btn ghost" data-action="offer">Побарај понуда</button>
+      <button class="btn primary" data-action="offer">Закажете разгледување</button>
+      <button class="btn ghost" data-action="tour">Прошетајте низ станот ${ICON.arrowR}</button>
     </div>`;
   $$('#apt-card [data-room]').forEach(li => {
     li.addEventListener('click', () => enterTour(li.dataset.room));
+    li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterTour(li.dataset.room); } });
     li.addEventListener('pointerenter', mouseOnly(() => hlRoom(li.dataset.room, true)));
     li.addEventListener('pointerleave', mouseOnly(() => hlRoom(li.dataset.room, false)));
   });
@@ -721,7 +760,7 @@ function buildPhotoTour(apt, room, fx) {
     const [px, py] = room.photo.spots[i % room.photo.spots.length];
     const h = el('div', 'hs photo');
     Object.assign(h.style, { left: px * 100 + '%', top: py * 100 + '%' });
-    h.innerHTML = `<button><span class="ring"></span>${n.name} →</button>`;
+    h.innerHTML = `<button><span class="ring"></span>${n.name}</button>`;
     const btn = $('button', h);
     btn.addEventListener('pointerdown', e => e.stopPropagation());
     btn.addEventListener('click', () => enterTour(n.id));
@@ -730,7 +769,7 @@ function buildPhotoTour(apt, room, fx) {
 
   // Копчиња долу — корисно на телефон, каде дел од сликата е надвор од екранот
   const nav = el('div', 'photo-nav');
-  nav.innerHTML = nbs.map(n => `<button data-go="${n.id}">${n.name} →</button>`).join('');
+  nav.innerHTML = nbs.map(n => `<button data-go="${n.id}">${n.name} ${ICON.arrowR}</button>`).join('');
   $$('button', nav).forEach(b => {
     b.addEventListener('pointerdown', e => e.stopPropagation());
     b.addEventListener('click', () => enterTour(b.dataset.go));
@@ -1067,7 +1106,7 @@ document.addEventListener('click', e => {
     else if (act === 'to-building') toBuilding();
     else if (act === 'to-plan') toPlan();
     else if (act === 'tour') enterTour(state.apt.layout.rooms[0].id);
-    else if (act === 'offer') toast('Демо: тука би се отворил формулар за контакт.');
+    else if (act === 'offer') openInquiry(state.apt);
     return;
   }
   const d = e.target.closest('[data-dim]');
@@ -1075,6 +1114,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if ($('#inquiry').open) return;          // <dialog> се затвора сам
   if (state.view === 'tour') toPlan();
   else if (state.view === 'apartment') toBuilding();
   else closeDrawer();
@@ -1087,5 +1127,40 @@ addEventListener('resize', () => {
     if (state.view === 'apartment' && state.apt) renderPlan(state.apt, false);
   }, 150);
 });
+
+/* ===================== 6. БАРАЊЕ ЗА РАЗГЛЕДУВАЊЕ ===================== */
+// Демо: формуларот не праќа ништо. За вистински клиент поврзете го со е-пошта или CRM
+// (на пр. Formspree, Netlify Forms или сопствен API) во submitInquiry.
+function openInquiry(apt) {
+  const dlg = $('#inquiry');
+  const form = $('form', dlg);
+  form.reset();
+  dlg.classList.remove('sent');
+  $('#inq-apt').textContent = apt ? `Стан ${apt.id} · ${apt.layout.label} · ${apt.area} m² · ${euro(apt.price)}` : '';
+  form.elements.apt.value = apt ? apt.id : '';
+  $$('.err', form).forEach(e => e.textContent = '');
+  dlg.showModal();
+}
+function submitInquiry(e) {
+  e.preventDefault();
+  const form = e.target, f = form.elements;
+  const err = (name, msg) => { form.querySelector(`[data-err="${name}"]`).textContent = msg; return !msg; };
+  const okName = err('name', f.name.value.trim().length < 2 ? 'Внесете име и презиме.' : '');
+  const phone = f.phone.value.replace(/[\s\/-]/g, '');
+  const okPhone = err('phone', /^\+?\d{8,15}$/.test(phone) ? '' : 'Внесете телефонски број, на пр. 070 123 456.');
+  const okMail = err('email', !f.email.value || f.email.validity.valid ? '' : 'Е-поштата не е во точен формат.');
+  if (!(okName && okPhone && okMail)) {
+    const first = form.querySelector('.err:not(:empty)');
+    if (first) first.closest('label').querySelector('input, textarea').focus();
+    return;
+  }
+  $('#inquiry').classList.add('sent');
+}
+(function setupInquiry() {
+  const dlg = $('#inquiry');
+  $('form', dlg).addEventListener('submit', submitInquiry);
+  $$('[data-close]', dlg).forEach(b => b.addEventListener('click', () => dlg.close()));
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });   // клик надвор
+})();
 
 buildHero();
